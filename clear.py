@@ -5,13 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-xsize = 240
-ysize = 320
-with open(os.getenv('OUTPUT'), 'wb') as f:
-  output = bytearray()
-  for y in range(0,ysize):
-    for x in range(0,xsize):
-      output += (0).to_bytes(1, byteorder='little')
-      output += (0).to_bytes(1, byteorder='little')
-
-  f.write(output)
+xSize = int(os.getenv('xSize', 240))
+ySize = int(os.getenv('ySize', 320))
+with open(os.getenv('outFile', './out.bin'), 'wb') as f:
+    f.write((0).to_bytes(xSize * ySize * 2, byteorder="little"))
