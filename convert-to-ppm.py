@@ -12,7 +12,7 @@ rShift = 11
 xSize = int(os.getenv('xSize', 240))
 ySize = int(os.getenv('ySize', 320))
 with open(os.getenv('outFile', './out.bin'), 'rb') as inFile, open(os.getenv('outFile', './out.bin') + '.ppm', 'wb') as outFile:
-    outFile.write(bytes(f'P6 {xSize} {ySize} 31 ', 'utf-8'))
+    outFile.write(bytes(f'P6\n{xSize}\n{ySize}\n31\n', 'utf-8'))
     while True:
         piece = inFile.read(2)
         if piece == b'':
