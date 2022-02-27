@@ -7,5 +7,5 @@ class MonochromeColorspace(AbstractColorspace):
         self._max_value = max_value
 
     def convert(self, red: float, green: float, blue: float) -> int:
-        avg = math.floor((red + green + blue) / 3)
-        return math.floor(avg * self._max_value)
+        avg = (red + green + blue) // 3
+        return int(avg * self._max_value)
