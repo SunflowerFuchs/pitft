@@ -35,11 +35,11 @@ class RGBColorspace(AbstractColorspace):
         b_bits = int(blue * self._max_blue)
 
         if self._size == RGBColorspaceSizes.EIGHT:
-            return (r_bits << 5) + (g_bits << 2) + b_bits
+            return (b_bits << 5) + (g_bits << 2) + r_bits
         elif self._size == RGBColorspaceSizes.SIXTEEN:
-            return (r_bits << 11) + (g_bits << 5) + b_bits
+            return (b_bits << 11) + (g_bits << 5) + r_bits
         elif self._size == RGBColorspaceSizes.TWENTYFOUR:
-            return (r_bits << 16) + (g_bits << 8) + b_bits
+            return (b_bits << 16) + (g_bits << 8) + r_bits
 
         # shouldn't happen
         return 0
