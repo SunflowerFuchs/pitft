@@ -12,7 +12,7 @@ class PPMOutput(AbstractOutput):
         output += bytes(f'P6\n{self._x_res}\n{self._y_res}\n{self.max_color_value}\n', 'utf-8')
         for y in range(0, self._y_res):
             for x in range(0, self._x_res):
-                output += self._frame[y][x].to_bytes(self.num_bytes, byteorder="little")
+                output += self._frame[x + (self._x_res * y)].to_bytes(self.num_bytes, byteorder="little")
         with open(filename, 'wb') as f:
             f.write(output)
             f.close()
