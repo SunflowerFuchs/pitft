@@ -30,9 +30,9 @@ class RGBColorspace(AbstractColorspace):
         self._size = size
 
     def convert(self, red: float, green: float, blue: float) -> int:
-        r_bits = int((red * self._max_red) // 100)
-        g_bits = int((green * self._max_green) // 100)
-        b_bits = int((blue * self._max_blue) // 100)
+        r_bits = int(red * self._max_red)
+        g_bits = int(green * self._max_green)
+        b_bits = int(blue * self._max_blue)
 
         if self._size == RGBColorspaceSizes.EIGHT:
             return (r_bits << 5) + (g_bits << 2) + b_bits

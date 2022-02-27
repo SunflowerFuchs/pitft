@@ -1,4 +1,3 @@
-import math
 from src.Colorspaces.AbstractColorspace import AbstractColorspace
 
 
@@ -8,4 +7,4 @@ class MonochromeColorspace(AbstractColorspace):
 
     def convert(self, red: float, green: float, blue: float) -> int:
         avg = (red + green + blue) // 3
-        return int(avg * self._max_value)
+        return int(round(avg * self._max_value, 0))
