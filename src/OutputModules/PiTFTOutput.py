@@ -8,10 +8,10 @@ class PiTFTOutput(AbstractOutput):
     def flush(self):
         filename = '/dev/fb1'
         output = bytearray()
+        for y in range(0, self._y_res):
+            for x in range(0, self._x_res):
+                output += self._frame[y][x].to_bytes(self.num_bytes, byteorder="little")
         with open(filename, 'wb') as f:
-            for y in range(0, self._y_res):
-                for x in range(0, self._x_res):
-                    output += self._frame[y][x].to_bytes(self.num_bytes, byteorder="little")
             f.write(output)
             f.close()
 
