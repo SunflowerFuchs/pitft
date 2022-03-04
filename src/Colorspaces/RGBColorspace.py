@@ -15,14 +15,22 @@ class RGBColorspace(AbstractColorspace):
             self._max_red = 7
             self._max_green = 7
             self._max_blue = 3
+            self._blue_shift = 5
+            self._green_shift = 2
         elif size == RGBColorspaceSizes.SIXTEEN:
             self._max_red = 32
             self._max_green = 64
             self._max_blue = 32
+            self._blue_shift = 11
+            self._green_shift = 5
         elif size == RGBColorspaceSizes.TWENTYFOUR:
             self._max_red = 256
             self._max_green = 256
             self._max_blue = 256
+            self._blue_shift = 16
+            self._green_shift = 8
+        else:
+            raise ValueError('Only one of RGBColorSpaceSizes.* allowed for size param')
 
         self._max_red = min(max_value, self._max_red) if max_value > 0 else self._max_red
         self._max_green = min(max_value, self._max_green) if max_value > 0 else self._max_green
@@ -34,12 +42,4 @@ class RGBColorspace(AbstractColorspace):
         g_bits = int(green * self._max_green)
         b_bits = int(blue * self._max_blue)
 
-        if self._size == RGBColorspaceSizes.EIGHT:
-            return (b_bits << 5) + (g_bits << 2) + r_bits
-        elif self._size == RGBColorspaceSizes.SIXTEEN:
-            return (b_bits << 11) + (g_bits << 5) + r_bits
-        elif self._size == RGBColorspaceSizes.TWENTYFOUR:
-            return (b_bits << 16) + (g_bits << 8) + r_bits
-
-        # shouldn't happen
-        return 0
+        return (b_bits << self._blue_shift) + (g_bits << self._green_shift) + r_bits

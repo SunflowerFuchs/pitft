@@ -5,16 +5,23 @@ from dotenv import load_dotenv
 from src.OutputModules.PPMOutput import PPMOutput
 from src.OutputModules.PiTFTOutput import PiTFTOutput
 
-load_dotenv()
 
-xSize = int(os.getenv('xSize', 240))
-ySize = int(os.getenv('ySize', 320))
-outputType = os.getenv('output', 'ppm')
-if outputType == 'ppm':
-    output = PPMOutput(xSize, ySize)
-elif outputType == 'pitft':
-    output = PiTFTOutput(xSize, ySize)
-else:
-    raise ValueError(f'Unknown output type {outputType}')
+def clear():
+    load_dotenv()
 
-output.next_frame()
+    x_size = int(os.getenv('xSize', 240))
+    y_size = int(os.getenv('ySize', 320))
+    output_type = os.getenv('output', 'ppm')
+    if output_type == 'ppm':
+        output = PPMOutput(x_size, y_size)
+    elif output_type == 'pitft':
+        output = PiTFTOutput(x_size, y_size)
+    else:
+        raise ValueError(f'Unknown output type {output_type}')
+
+    output.clear_frame()
+    output.next_frame()
+
+
+if __name__ == '__main__':
+    clear()

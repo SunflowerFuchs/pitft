@@ -8,7 +8,7 @@ class AbstractOutput(ABC):
         self._x_res: int = x_res
         self._y_res: int = y_res
         self._colorspace: AbstractColorspace = colorspace
-        self._frame: List[int] = []  # gets filled in self.clear_frame()
+        self._frame: Dict[int] = {}.fromkeys(range(self._x_res * self._y_res))
         self._frame_count = 0
 
         # helper properties
@@ -35,7 +35,7 @@ class AbstractOutput(ABC):
         pass
 
     def clear_frame(self):
-        self._frame = [0 for i in range(self._x_res * self._y_res)]
+        self._frame = {}.fromkeys(self._frame, 0)
         self._frame_pointer = 0
 
     @abstractmethod
