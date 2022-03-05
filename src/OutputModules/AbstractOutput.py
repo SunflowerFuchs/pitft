@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict
+from typing import Dict
 from src.Colorspaces.AbstractColorspace import AbstractColorspace
 
 
@@ -28,11 +28,16 @@ class AbstractOutput(ABC):
         # add to the pointer
         self._frame_pointer += 1
 
+    def skip_pixel(self):
+        if self._frame_pointer >= self._frame_end:
+            raise IndexError('Frame is already full')
+
+        self._frame_pointer += 1
+
     def next_frame(self) -> None:
         self.flush()
-        self.clear_frame()
         self._frame_count += 1
-        pass
+        self._frame_pointer = 0
 
     def clear_frame(self) -> None:
         self._frame = {}.fromkeys(self._frame, 0)
