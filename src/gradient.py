@@ -10,28 +10,29 @@ class GradientColor(Enum):
 
 
 def generate_gradient_images(
-        start_color: GradientColor = GradientColor.Blue,
-        end_color: GradientColor = GradientColor.Red
+        horizontal_color: GradientColor = GradientColor.Blue,
+        vertical_color: GradientColor = GradientColor.Red
 ) -> None:
     output = OutputManager().get_output()
 
+    red = 0
+    green = 0
+    blue = 0
     for y in range(0, output.height):
         y_val = y / output.height
         for x in range(0, output.width):
             x_val = x / output.width
-            red = 0
-            green = 0
-            blue = 0
-            if start_color == GradientColor.Red:
+
+            if horizontal_color == GradientColor.Red:
                 red = x_val
-            elif start_color == GradientColor.Green:
+            elif horizontal_color == GradientColor.Green:
                 green = x_val
             else:
                 blue = x_val
 
-            if end_color == GradientColor.Red:
+            if vertical_color == GradientColor.Red:
                 red = y_val
-            elif end_color == GradientColor.Green:
+            elif vertical_color == GradientColor.Green:
                 green = y_val
             else:
                 blue = y_val

@@ -16,3 +16,7 @@ class PiTFTOutput(AbstractOutput):
 
     def __init__(self, x_res: int, y_res: int) -> None:
         super().__init__(x_res, y_res, RGBColorspace(self._num_bytes))
+
+    def add_pixel(self, red: float, green: float, blue: float) -> None:
+        # the screen uses a different order of colors
+        super().add_pixel(blue, green, red)
