@@ -1,47 +1,42 @@
 #!/usr/bin/env python3
-
-import math
-import os
-from dotenv import load_dotenv
-from src.OutputModules.PPMOutput import PPMOutput
-from src.OutputModules.PiTFTOutput import PiTFTOutput
+from enum import Enum, auto
+from src.OutputModules.OutputManager import OutputManager
 
 
-def generate_gradient_images():
-    load_dotenv()
+class GradientColor(Enum):
+    Red = auto()
+    Green = auto()
+    Blue = auto()
 
-    x_size = int(os.getenv('xSize', 240))
-    y_size = int(os.getenv('ySize', 320))
-    output_type = os.getenv('output', 'ppm')
-    if output_type == 'ppm':
-        output = PPMOutput(x_size, y_size)
-    elif output_type == 'pitft':
-        output = PiTFTOutput(x_size, y_size)
-    else:
-        raise ValueError(f'Unknown output type {output_type}')
 
-    for y in range(0, y_size):
-        for x in range(0, x_size):
-            x_val = x / x_size
-            y_val = y / y_size
+def generate_gradient_images(
+        start_color: GradientColor = GradientColor.Blue,
+        end_color: GradientColor = GradientColor.Red
+) -> None:
+    output = OutputManager().get_output()
 
-            output.add_pixel(x_val, 0, y_val)
-    output.next_frame()
+    for y in range(0, output.height):
+        y_val = y / output.height
+        for x in range(0, output.width):
+            x_val = x / output.width
+            red = 0
+            green = 0
+            blue = 0
+            if start_color == GradientColor.Red:
+                red = x_val
+            elif start_color == GradientColor.Green:
+                green = x_val
+            else:
+                blue = x_val
 
-    for y in range(0, y_size):
-        for x in range(0, x_size):
-            x_val = x / x_size
-            y_val = y / y_size
+            if end_color == GradientColor.Red:
+                red = y_val
+            elif end_color == GradientColor.Green:
+                green = y_val
+            else:
+                blue = y_val
 
-            output.add_pixel(0, y_val, x_val)
-    output.next_frame()
-
-    for y in range(0, y_size):
-        for x in range(0, x_size):
-            x_val = x / x_size
-            y_val = y / y_size
-
-            output.add_pixel(y_val, x_val, 0)
+            output.add_pixel(red, green, blue)
     output.next_frame()
 
 
