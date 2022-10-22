@@ -18,7 +18,11 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UnixMilli())
-	width, height, target, targetType := parseArgs()
+	width, height, target, targetType, seed, length := parseArgs()
+
+	// initialized the randomizer with the passed seed to enable deterministic outputs
+	log.Printf("Generating image with the following seed: %d", seed)
+	rand.Seed(seed)
 
 	// smaller = smoother, larger = rougher
 	roughness := (1 + rand.Float64()*2) / float64(width)
@@ -30,7 +34,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		img := generateNRGBAImage(width, height, roughness)
+		img := generateNRGBAImage(width, height, seed, roughness, 0)
 		err = png.Encode(f, img)
 		if err != nil {
 			log.Fatal(err)
@@ -46,7 +50,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		img := generateNRGBAImage(width, height, roughness)
+		img := generateNRGBAImage(width, height, seed, roughness, 0)
 		err = jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
 		if err != nil {
 			log.Fatal(err)
@@ -62,7 +66,8 @@ func main() {
 			log.Fatal(err)
 		}
 
-		img := generateNRGBAImage(width, height, roughness)
+		// TODO: animation
+		img := generateNRGBAImage(width, height, seed, roughness, 0)
 		err = gif.Encode(f, img, &gif.Options{NumColors: 256})
 		if err != nil {
 			log.Fatal(err)
@@ -78,7 +83,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		img := generateNRGBAImage(width, height, roughness)
+		img := generatePiTFTImage(width, height, seed, roughness, 0)
 		bytes := convertImageToPiTFTBytes(img)
 		_, err = f.Write(bytes)
 		if err != nil {
@@ -89,16 +94,24 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	case "pitft-clear":
+	case "pitft-animated":
 		f, err := os.OpenFile(target, os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		bytes := make([]byte, width*height*2)
-		_, err = f.Write(bytes)
-		if err != nil {
-			log.Fatal(err)
+		for i := 1; i <= length; i++ {
+			img := generatePiTFTImage(width, height, seed, roughness, i)
+			bytes := convertImageToPiTFTBytes(img)
+
+			_, err = f.Seek(0, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+			_, err = f.Write(bytes)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		err = f.Close()
@@ -112,23 +125,23 @@ func main() {
 }
 
 // all the floats returned by the returned function are between 0 and 1
-func getNoiseFunc(seed int64, roughness float64) func(x int, y int) (float64, float64, float64, float64) {
+func getNoiseFunc(seed int64, roughness float64, offset int) func(x int, y int) (float64, float64, float64, float64) {
 	rNoise := opensimplex.New(seed)
 	gNoise := opensimplex.New(seed + 1)
 	bNoise := opensimplex.New(seed + 2)
 	aNoise := opensimplex.New(seed + 3)
 
 	return func(x int, y int) (float64, float64, float64, float64) {
-		return rNoise.Eval2(float64(x)*roughness, float64(y)*roughness),
-			gNoise.Eval2(float64(x)*roughness, float64(y)*roughness),
-			bNoise.Eval2(float64(x)*roughness, float64(y)*roughness),
-			aNoise.Eval2(float64(x)*roughness, float64(y)*roughness)
+		return rNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
+			gNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
+			bNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
+			aNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02)
 	}
 }
 
-func generateNRGBAImage(width int, height int, roughness float64) *image.NRGBA {
+func generateNRGBAImage(width int, height int, seed int64, roughness float64, offset int) *image.NRGBA {
 	// fill the image with data from the noises
-	noiseFunc := getNoiseFunc(rand.Int63(), roughness)
+	noiseFunc := getNoiseFunc(seed, roughness, offset)
 	img := image.NewNRGBA(image.Rect(0, 0, width, height))
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
@@ -146,6 +159,25 @@ func generateNRGBAImage(width int, height int, roughness float64) *image.NRGBA {
 	return img
 }
 
+func generatePiTFTImage(width int, height int, seed int64, roughness float64, offset int) *image.NRGBA {
+	// fill the image with data from the noises
+	noiseFunc := getNoiseFunc(seed, roughness, offset)
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			r, g, b, _ := noiseFunc(x, y)
+			img.Set(x, y, color.NRGBA{
+				R: uint8(math.Abs(r * 31)),
+				G: uint8(math.Abs(g * 63)),
+				B: uint8(math.Abs(b * 31)),
+				A: 0,
+			})
+		}
+	}
+
+	return img
+}
+
 func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 	bytes := make([]byte, len(img.Pix)/2)
 
@@ -156,13 +188,13 @@ func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 		byteCnt++
 		switch byteCnt {
 		case 1:
-			r = uint8(math.Round(float64(pix) / 255 * 31))
+			r = pix
 			continue
 		case 2:
-			g = uint8(math.Round(float64(pix) / 255 * 63))
+			g = pix
 			continue
 		case 3:
-			b = uint8(math.Round(float64(pix) / 255 * 31))
+			b = pix
 			continue
 		}
 		byteCnt = 0
@@ -179,19 +211,22 @@ func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 	return bytes
 }
 
-func parseArgs() (int, int, string, string) {
-	var width, height int
+func parseArgs() (int, int, string, string, int64, int) {
+	var width, height, length int
 	var output, outputType string
+	var seed int64
 
 	flag.IntVar(&width, "width", 800, "The width of the target image")
 	flag.IntVar(&height, "height", 800, "The height of the target image")
 	flag.StringVar(&output, "output", "DEFAULT", "The target file")
 	flag.StringVar(&outputType, "type", "png", "The target file")
+	flag.Int64Var(&seed, "seed", rand.Int63(), "The seed for the image generation")
+	flag.IntVar(&length, "length", 10, "How long the animation should be (ignored on non-animated images).")
 	flag.Parse()
 
 	if output == "DEFAULT" {
 		output = fmt.Sprintf("./randomImage-%d-%d.%s", width, height, outputType)
 	}
 
-	return width, height, output, outputType
+	return width, height, output, outputType, seed, length
 }
