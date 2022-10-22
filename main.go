@@ -6,6 +6,7 @@ import (
 	"github.com/ojrac/opensimplex-go"
 	"image"
 	"image/color"
+	"image/color/palette"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -18,7 +19,7 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UnixMilli())
-	width, height, target, targetType, seed, length := parseArgs()
+	width, height, target, targetType, seed, length, loop := parseArgs()
 
 	// initialized the randomizer with the passed seed to enable deterministic outputs
 	log.Printf("Generating image with the following seed: %d", seed)
@@ -66,9 +67,37 @@ func main() {
 			log.Fatal(err)
 		}
 
-		// TODO: animation
-		img := generateNRGBAImage(width, height, seed, roughness, 0)
-		err = gif.Encode(f, img, &gif.Options{NumColors: 256})
+		frames := make([]*image.Paletted, length)
+		delays := make([]int, length)
+		if !loop {
+			for i := 0; i < length; i++ {
+				frames[i] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
+				delays[i] = 10
+			}
+		} else {
+			offset := 0
+			for i := 0; i < int(math.Ceil(float64(length)/2))+1; i++ {
+				frames[offset] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
+				delays[offset] = 10
+				offset++
+			}
+			for i := int(math.Floor(float64(length)/2)) - 1; i >= 1; i-- {
+				frames[offset] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
+				delays[offset] = 10
+				offset++
+			}
+		}
+
+		resultGif := gif.GIF{
+			Image: frames,
+			Delay: delays,
+			Config: image.Config{
+				ColorModel: frames[0].Palette,
+				Width:      frames[0].Bounds().Dx(),
+				Height:     frames[0].Bounds().Dy(),
+			},
+		}
+		err = gif.EncodeAll(f, &resultGif)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -100,17 +129,46 @@ func main() {
 			log.Fatal(err)
 		}
 
-		for i := 1; i <= length; i++ {
-			img := generatePiTFTImage(width, height, seed, roughness, i)
-			bytes := convertImageToPiTFTBytes(img)
+		if !loop {
+			for i := 1; i <= length; i++ {
+				img := generatePiTFTImage(width, height, seed, roughness, i)
+				bytes := convertImageToPiTFTBytes(img)
 
-			_, err = f.Seek(0, 0)
-			if err != nil {
-				log.Fatal(err)
+				_, err = f.Seek(0, 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				_, err = f.Write(bytes)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
-			_, err = f.Write(bytes)
-			if err != nil {
-				log.Fatal(err)
+		} else {
+			for i := 0; i < int(math.Ceil(float64(length)/2))+1; i++ {
+				img := generatePiTFTImage(width, height, seed, roughness, i)
+				bytes := convertImageToPiTFTBytes(img)
+
+				_, err = f.Seek(0, 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				_, err = f.Write(bytes)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+			for i := int(math.Floor(float64(length)/2)) - 1; i >= 1; i-- {
+				img := generatePiTFTImage(width, height, seed, roughness, i)
+				bytes := convertImageToPiTFTBytes(img)
+
+				_, err = f.Seek(0, 0)
+				if err != nil {
+					log.Fatal(err)
+				}
+				_, err = f.Write(bytes)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 
@@ -178,6 +236,26 @@ func generatePiTFTImage(width int, height int, seed int64, roughness float64, of
 	return img
 }
 
+func generatePalettedImage(width int, height int, palette color.Palette, seed int64, roughness float64, offset int) *image.Paletted {
+	// fill the image with data from the noises
+	noiseFunc := getNoiseFunc(seed, roughness, offset)
+	img := image.NewPaletted(image.Rect(0, 0, width, height), palette)
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			r, g, b, a := noiseFunc(x, y)
+			img.Set(x, y, color.NRGBA{
+				R: uint8(math.Abs(r * 255)),
+				G: uint8(math.Abs(g * 255)),
+				B: uint8(math.Abs(b * 255)),
+				// we limit alpha to the lower 6 bits of randomness to keep it above a certain level
+				A: uint8(math.Abs(a*63)) + 192,
+			})
+		}
+	}
+
+	return img
+}
+
 func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 	bytes := make([]byte, len(img.Pix)/2)
 
@@ -211,10 +289,11 @@ func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 	return bytes
 }
 
-func parseArgs() (int, int, string, string, int64, int) {
+func parseArgs() (int, int, string, string, int64, int, bool) {
 	var width, height, length int
 	var output, outputType string
 	var seed int64
+	var loop bool
 
 	flag.IntVar(&width, "width", 800, "The width of the target image")
 	flag.IntVar(&height, "height", 800, "The height of the target image")
@@ -222,11 +301,12 @@ func parseArgs() (int, int, string, string, int64, int) {
 	flag.StringVar(&outputType, "type", "png", "The target file")
 	flag.Int64Var(&seed, "seed", rand.Int63(), "The seed for the image generation")
 	flag.IntVar(&length, "length", 10, "How long the animation should be (ignored on non-animated images).")
+	flag.BoolVar(&loop, "loop", false, "Whether the animation should reverse for a perfect loop (ignored on non-animated images).")
 	flag.Parse()
 
 	if output == "DEFAULT" {
 		output = fmt.Sprintf("./randomImage-%d-%d.%s", width, height, outputType)
 	}
 
-	return width, height, output, outputType, seed, length
+	return width, height, output, outputType, seed, length, loop
 }
