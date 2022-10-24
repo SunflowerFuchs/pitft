@@ -17,6 +17,20 @@ import (
 	"time"
 )
 
+type gifWorkerParams struct {
+	width     int
+	height    int
+	palette   color.Palette
+	seed      int64
+	roughness float64
+	offset    int
+}
+
+type gifWorkerResults struct {
+	img    *image.Paletted
+	offset int
+}
+
 func main() {
 	rand.Seed(time.Now().UnixMilli())
 	width, height, target, targetType, seed, length, loop := parseArgs()
@@ -67,24 +81,43 @@ func main() {
 			log.Fatal(err)
 		}
 
+		numFrames := length
+		if loop {
+			numFrames = int(math.Ceil(float64(length)/2)) + 1
+		}
+
+		jobBuffer := make(chan gifWorkerParams, numFrames)
+		frameBuffer := make(chan gifWorkerResults, numFrames)
+		numWorkers := 50
+		if numWorkers > numFrames {
+			numWorkers = numFrames
+		}
+		for i := 0; i < numWorkers; i++ {
+			go palettedImageWorker(jobBuffer, frameBuffer)
+		}
+
 		frames := make([]*image.Paletted, length)
 		delays := make([]int, length)
-		if !loop {
-			for i := 0; i < length; i++ {
-				frames[i] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
-				delays[i] = 10
+
+		for i := 0; i < numFrames; i++ {
+			jobBuffer <- gifWorkerParams{width: width,
+				height:    height,
+				palette:   palette.WebSafe,
+				seed:      seed,
+				roughness: roughness,
+				offset:    i,
 			}
-		} else {
-			offset := 0
-			for i := 0; i < int(math.Ceil(float64(length)/2))+1; i++ {
-				frames[offset] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
-				delays[offset] = 10
-				offset++
-			}
-			for i := int(math.Floor(float64(length)/2)) - 1; i >= 1; i-- {
-				frames[offset] = generatePalettedImage(width, height, palette.WebSafe, seed, roughness, i)
-				delays[offset] = 10
-				offset++
+		}
+		close(jobBuffer)
+
+		for i := 0; i < numFrames; i++ {
+			res := <-frameBuffer
+			frames[res.offset] = res.img
+			delays[res.offset] = 5
+
+			if loop && res.offset != 0 {
+				frames[length-res.offset] = res.img
+				delays[length-res.offset] = 5
 			}
 		}
 
@@ -180,6 +213,8 @@ func main() {
 		fmt.Printf("Unsupported format '%s'", targetType)
 		os.Exit(1)
 	}
+
+	log.Println("Finished image generation")
 }
 
 // all the floats returned by the returned function are between 0 and 1
@@ -190,10 +225,10 @@ func getNoiseFunc(seed int64, roughness float64, offset int) func(x int, y int) 
 	aNoise := opensimplex.New(seed + 3)
 
 	return func(x int, y int) (float64, float64, float64, float64) {
-		return rNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
-			gNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
-			bNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02),
-			aNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.02)
+		return rNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.01),
+			gNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.01),
+			bNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.01),
+			aNoise.Eval3(float64(x)*roughness, float64(y)*roughness, float64(offset)*0.01)
 	}
 }
 
@@ -256,6 +291,15 @@ func generatePalettedImage(width int, height int, palette color.Palette, seed in
 	return img
 }
 
+func palettedImageWorker(jobs <-chan gifWorkerParams, results chan<- gifWorkerResults) {
+	for params := range jobs {
+		results <- gifWorkerResults{
+			img:    generatePalettedImage(params.width, params.height, params.palette, params.seed, params.roughness, params.offset),
+			offset: params.offset,
+		}
+	}
+}
+
 func convertImageToPiTFTBytes(img *image.NRGBA) []byte {
 	bytes := make([]byte, len(img.Pix)/2)
 
@@ -300,7 +344,7 @@ func parseArgs() (int, int, string, string, int64, int, bool) {
 	flag.StringVar(&output, "output", "DEFAULT", "The target file")
 	flag.StringVar(&outputType, "type", "png", "The target file")
 	flag.Int64Var(&seed, "seed", rand.Int63(), "The seed for the image generation")
-	flag.IntVar(&length, "length", 10, "How long the animation should be (ignored on non-animated images).")
+	flag.IntVar(&length, "length", 20, "How long the animation should be (ignored on non-animated images).")
 	flag.BoolVar(&loop, "loop", false, "Whether the animation should reverse for a perfect loop (ignored on non-animated images).")
 	flag.Parse()
 
